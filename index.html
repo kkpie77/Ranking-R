@@ -109,7 +109,7 @@
       ctx.fillText(label + "  ·  " + voteCount + "回の比較より", W/2, 118);
 
       // Divider
-      ctx.strokeStyle = "#2d1f4a"; ctx.lineWidth = 1;
+      ctx.strokeStyle = "#d8c8f8"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(PAD, 136); ctx.lineTo(W-PAD, 136); ctx.stroke();
 
       const rankLabels = ["1st","2nd","3rd"];
@@ -129,13 +129,13 @@
           rg.addColorStop(1, "rgba(155,93,229,0)");
           ctx.fillStyle = rg; ctx.fillRect(0, y, W, ROW);
         } else if (isTop10) {
-          ctx.fillStyle = "rgba(100,60,160,0.06)"; ctx.fillRect(0, y, W, ROW);
+          ctx.fillStyle = "rgba(155,93,229,0.04)"; ctx.fillRect(0, y, W, ROW);
         } else {
-          ctx.fillStyle = "rgba(80,50,120,0.04)"; ctx.fillRect(0, y, W, ROW);
+          ctx.fillStyle = "rgba(155,93,229,0.02)"; ctx.fillRect(0, y, W, ROW);
         }
 
         // Row divider
-        ctx.strokeStyle = "#1e1535"; ctx.lineWidth = 1;
+        ctx.strokeStyle = "#ede4ff"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(PAD, y+ROW-1); ctx.lineTo(W-PAD, y+ROW-1); ctx.stroke();
 
         // Rank
@@ -144,7 +144,7 @@
           ctx.fillStyle = rankColors[i]; ctx.font = "bold 13px Georgia, serif";
           ctx.fillText(rankLabels[i], PAD+20, y+ROW/2+5);
         } else {
-          ctx.fillStyle = isTop10 ? "#7c5cbf" : "#4a3870";
+          ctx.fillStyle = isTop10 ? "#7c3aed" : "#b8a0d8";
           ctx.font = "bold 12px Georgia, serif";
           ctx.fillText(`${rank}`, PAD+20, y+ROW/2+5);
         }
