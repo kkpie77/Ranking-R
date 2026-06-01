@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>好きランキング</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    // ─── Merge Sort Engine ──────────────────────────────────────────────────────
+    function advanceToNextComparison(st) {
+      let { segs, merge, done_segs } = st;
+      if (merge && merge.i < merge.left.length && merge.j < merge.right.length) {
+        return { sortState: st, done: false, comparison: { aId: merge.left[merge.i], bId: merge.right[merge.j] } };
+      }
+      if (merge) {
+        while (merge.i < merge.left.length) merge.result.push(merge.left[merge.i++]);
+        while (merge.j < merge.right.length) merge.result.push(merge.right[merge.j++]);
+        done_segs = [...done_segs, merge.result];
+        merge = null;
+      }
+      const all = [...done_segs, ...segs];
+      if (all.length <= 1) {
+        return { sortState: { segs: [], merge: null, done_segs: all }, done: true, result: all[0] || [], comparison: null };
+      }
+      const [s1, s2, ...rest] = all;
+      const newMerge = { left: s1, right: s2, i: 0, j: 0, result: [] };
+      return advanceToNextComparison({ segs: rest, merge: newMerge, done_segs: [] });
+    }
+
+    function startMergeSort(ids) {
+      if (ids.length <= 1) return { sortState: null, done: true, result: ids, comparison: null };
+      return advanceToNextComparison({ segs: ids.map(id => [id]), merge: null, done_segs: [] });
+    }
+
+    function applyVote(st, aWon) {
+      const s = JSON.parse(JSON.stringify(st));
+      if (!s.merge) return advanceToNextComparison(s);
+      if (aWon) { s.merge.result.push(s.merge.left[s.merge.i]); s.merge.i++; }
+      else       { s.merge.result.push(s.merge.right[s.merge.j]); s.merge.j++; }
+      return advanceToNextComparison(s);
+    }
+
+    function estimateMax(n) {
+      if (n <= 1) return 0;
+      return Math.ceil(n * Math.ceil(Math.log2(n)) / 1.5);
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // ─── Default members ────────────────────────────────────────────────────────
+    const DEFAULT_NAMES = [
+      "木稲瑠那","呉屋絵理子","中村楓","市瀬千里","左山桃子",
+      "伊藤めぐみ","小川愛","上野真実","瀧澤千聖","中嶋淑乃",
+      "松本茉奈加","藤生菜摘","早間美空","神谷千菜","渡邊真衣",
+      "島袋奈美恵","藤田七海","柳瀬楓菜","伊藤凛莉","塩田満彩",
+      "立花葉","臼井利依","古賀花野","笠原綺乃","李誠雅",
+      "石田ひなは","朝倉加奈子","嶋田華","寺村穂香",
+    ];
+
+    function getRankLabel(r) {
+      if (r === 1) return "👑"; if (r === 2) return "🥈"; if (r === 3) return "🥉"; return `${r}`;
+    }
+
+    // ─── Image save: Canvas, top 10 only ───────────────────────────────────────
+    function saveTop10Image(nameList, resultOrder, voteCount) {
+      const top10 = resultOrder.slice(0, 10);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const W = 560, ROW = 64, HEADER = 160, FOOTER = 60, PAD = 28;
+      const H = HEADER + ROW * top10.length + FOOTER;
+      const canvas = document.createElement("canvas");
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+      bgGrad.addColorStop(0, "#0d0c15"); bgGrad.addColorStop(1, "#080810");
+      ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+
+      const topBar = ctx.createLinearGradient(0, 0, W, 0);
+      topBar.addColorStop(0, "#5a3d18"); topBar.addColorStop(0.5, "#c9964a"); topBar.addColorStop(1, "#5a3d18");
+      ctx.fillStyle = topBar; ctx.fillRect(0, 0, W, 5);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#c9964a"; ctx.font = "bold 12px Georgia, serif";
+      ctx.fillText("✦  RANKING ORACLE  ✦", W / 2, 44);
+      ctx.fillStyle = "#f0e8d8"; ctx.font = "bold 36px Georgia, serif";
+      ctx.fillText("好きランキング", W / 2, 92);
+      ctx.fillStyle = "#8a7a65"; ctx.font = "italic 14px Georgia, serif";
+      ctx.fillText("TOP 10  ·  " + voteCount + "回の比較より", W / 2, 122);
+
+      ctx.strokeStyle = "#2a2535"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PAD, 140); ctx.lineTo(W - PAD, 140); ctx.stroke();
+
+      const rankLabels = ["1st", "2nd", "3rd"];
+      const rankColors = ["#c9964a", "#aaaaaa", "#cd7f32"];
+
+      top10.forEach((id, i) => {
+        const rank = i + 1;
+        const y = HEADER + ROW * i;
+        const name = nameList[id];
+
+        if (rank <= 3) {
+          const rowGrad = ctx.createLinearGradient(0, y, W, y);
+          rowGrad.addColorStop(0, `rgba(180,140,90,${[0.12, 0.08, 0.05][i]})`);
+          rowGrad.addColorStop(1, "rgba(180,140,90,0)");
+          ctx.fillStyle = rowGrad; ctx.fillRect(0, y, W, ROW);
+        }
+
+        ctx.strokeStyle = "#1e1c28"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(PAD, y + ROW - 1); ctx.lineTo(W - PAD, y + ROW - 1); ctx.stroke();
+
+        ctx.textAlign = "center";
+        if (rank <= 3) {
+          ctx.fillStyle = rankColors[i]; ctx.font = "bold 13px Georgia, serif";
+          ctx.fillText(rankLabels[i], PAD + 20, y + ROW / 2 + 5);
+        } else {
+          ctx.fillStyle = "#4a4060"; ctx.font = "bold 13px Georgia, serif";
+          ctx.fillText(`${rank}`, PAD + 20, y + ROW / 2 + 5);
+        }
+
+        ctx.textAlign = "left";
+        const fontSize = name.length <= 6 ? 19 : name.length <= 9 ? 16 : 14;
+        ctx.fillStyle = rank <= 3 ? "#f0e8d8" : "#a09080";
+        ctx.font = (rank <= 3 ? "bold " : "") + fontSize + "px Georgia, serif";
+        ctx.fillText(name, PAD + 52, y + ROW / 2 + 6);
+      });
+
+      ctx.fillStyle = "#2a2535"; ctx.font = "11px Georgia, serif"; ctx.textAlign = "center";
+      ctx.fillText("Ranking Oracle · Merge Sort", W / 2, HEADER + ROW * top10.length + 32);
+      ctx.fillStyle = topBar; ctx.fillRect(0, H - 5, W, 5);
+
+      const link = document.createElement("a");
+      link.download = "ranking_top10.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+
+    // ─── App ────────────────────────────────────────────────────────────────────
+    function App() {
+      const [phase, setPhase] = useState("setup");
+      const [nameInput, setNameInput] = useState(DEFAULT_NAMES.join("\n"));
+      const [nameList, setNameList] = useState([]);
+      const [sortState, setSortState] = useState(null);
+      const [comparison, setComparison] = useState(null);
+      const [resultOrder, setResultOrder] = useState([]);
+      const [history, setHistory] = useState([]);
+      const [voteCount, setVoteCount] = useState(0);
+      const [chosen, setChosen] = useState(null);
+      const [saving, setSaving] = useState(false);
+
+      const nameCount = nameInput.split("\n").filter(n => n.trim()).length;
+      const estimated = estimateMax(nameCount);
+
+      function handleStart() {
+        const names = nameInput.split("\n").map(n => n.trim()).filter(Boolean);
+        if (names.length < 2) return;
+        setNameList(names);
+        const ids = shuffle(names.map((_, i) => i));
+        const { sortState: ss, comparison: cmp, done, result } = startMergeSort(ids);
+        if (done) { setResultOrder(result); setPhase("result"); return; }
+        setSortState(ss); setComparison(cmp);
+        setVoteCount(0); setHistory([]); setChosen(null);
+        setPhase("voting");
+      }
+
+      function vote(aWon) {
+        if (chosen !== null || !comparison || !sortState) return;
+        setChosen(aWon ? 0 : 1);
+        setTimeout(() => {
+          setHistory(h => [...h, { sortState, comparison, count: voteCount }]);
+          const { sortState: ns, comparison: nc, done, result } = applyVote(sortState, aWon);
+          const newCount = voteCount + 1;
+          setVoteCount(newCount);
+          if (done) { setResultOrder(result); setPhase("result"); }
+          else { setSortState(ns); setComparison(nc); }
+          setChosen(null);
+        }, 360);
+      }
+
+      function goBack() {
+        if (history.length === 0) return;
+        const last = history[history.length - 1];
+        setSortState(last.sortState); setComparison(last.comparison);
+        setVoteCount(last.count); setHistory(h => h.slice(0, -1));
+        setChosen(null);
+        if (phase === "result") setPhase("voting");
+      }
+
+      function reset() {
+        setPhase("setup"); setSortState(null); setComparison(null);
+        setResultOrder([]); setHistory([]); setVoteCount(0); setChosen(null);
+      }
+
+      const pA = comparison ? nameList[comparison.aId] : "";
+      const pB = comparison ? nameList[comparison.bId] : "";
+      const canGoBack = history.length > 0 && chosen === null;
+      const progressPct = Math.min(100, Math.round(voteCount / estimated * 100));
+
+      function cardFontSize(name) {
+        const len = name.length;
+        if (len <= 4) return "clamp(20px, 5.5vw, 30px)";
+        if (len <= 6) return "clamp(17px, 4.5vw, 24px)";
+        if (len <= 8) return "clamp(14px, 3.8vw, 20px)";
+        return "clamp(12px, 3.2vw, 17px)";
+      }
+
+      return (
+        <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#e8e0d0",display:"flex",flexDirection:"column",alignItems:"center",padding:"0 16px"}}>
+          <style>{`
+            * { box-sizing:border-box; }
+            .card-btn {
+              position:relative; background:#13121a; border:1px solid #2a2535;
+              border-radius:12px; padding:0 20px; cursor:pointer;
+              transition:all 0.22s ease; width:100%; height:110px;
+              display:flex; align-items:center; justify-content:center;
+              text-align:center; color:#e8e0d0; font-family:Georgia,serif;
+            }
+            .card-btn::before { content:''; position:absolute; inset:0; border-radius:12px; background:radial-gradient(ellipse at 50% 0%,rgba(180,140,90,0.13) 0%,transparent 70%); opacity:0; transition:opacity 0.3s; }
+            .card-btn:hover:not(:disabled)::before { opacity:1; }
+            .card-btn:hover:not(:disabled) { border-color:#b48c5a; transform:translateY(-3px); box-shadow:0 12px 40px rgba(180,140,90,0.15); }
+            .card-btn.win { border-color:#b48c5a; background:#1a1610; box-shadow:0 0 30px rgba(180,140,90,0.3); }
+            .card-btn.lose { opacity:0.3; transform:scale(0.96); }
+            .card-btn:disabled { cursor:default; }
+            .rank-row { display:flex; align-items:center; gap:14px; padding:11px 20px; border-bottom:1px solid #1e1c28; }
+            .rank-row:hover { background:rgba(180,140,90,0.04); }
+            .prog-out { width:100%; height:4px; background:#1e1c28; border-radius:2px; overflow:hidden; }
+            .prog-in { height:100%; background:linear-gradient(90deg,#7a5c30,#b48c5a); border-radius:2px; transition:width 0.4s ease; }
+            textarea { width:100%; background:#0f0e16; border:1px solid #2a2535; border-radius:8px; color:#e8e0d0; font-family:Georgia,serif; font-size:14px; padding:16px; resize:vertical; outline:none; line-height:1.7; transition:border-color 0.2s; }
+            textarea:focus { border-color:#b48c5a; }
+            .btn-gold { background:linear-gradient(135deg,#7a5c30,#b48c5a); color:#0a0a0f; border:none; border-radius:8px; padding:14px 44px; font-family:Georgia,serif; font-size:16px; font-weight:700; cursor:pointer; letter-spacing:2px; transition:all 0.2s; }
+            .btn-gold:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(180,140,90,0.4); }
+            .btn-ghost { background:transparent; color:#7a6a55; border:1px solid #2a2535; border-radius:8px; padding:9px 20px; font-family:Georgia,serif; font-size:13px; cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+            .btn-ghost:hover:not(:disabled) { border-color:#b48c5a; color:#b48c5a; }
+            .btn-ghost:disabled { opacity:0.28; cursor:default; }
+            .btn-accent { background:transparent; color:#b48c5a; border:1px solid #b48c5a; border-radius:8px; padding:9px 20px; font-family:Georgia,serif; font-size:13px; cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+            .btn-accent:hover { background:rgba(180,140,90,0.1); }
+            .btn-save { background:linear-gradient(135deg,#7a5c30,#b48c5a); color:#0a0a0f; border:none; border-radius:8px; padding:12px 28px; font-family:Georgia,serif; font-size:14px; font-weight:700; cursor:pointer; letter-spacing:1px; transition:all 0.2s; display:flex; align-items:center; gap:8px; }
+            .btn-save:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 24px rgba(180,140,90,0.35); }
+            .btn-save:disabled { opacity:0.5; cursor:default; }
+          `}</style>
+
+          {/* Header */}
+          <div style={{textAlign:"center",padding:"44px 0 28px"}}>
+            <div style={{color:"#b48c5a",opacity:0.6,fontSize:12,letterSpacing:6,marginBottom:10}}>✦ RANKING ORACLE ✦</div>
+            <h1 style={{fontFamily:"Georgia,serif",fontSize:"clamp(26px,6vw,46px)",fontWeight:900,margin:0,letterSpacing:1}}>好きランキング</h1>
+            <p style={{color:"#7a6a55",marginTop:8,fontSize:14,fontStyle:"italic",fontFamily:"Georgia,serif"}}>二択で選ぶだけ。あなたの本音が順位になる。</p>
+          </div>
+
+          {/* ── SETUP ── */}
+          {phase==="setup" && (
+            <div style={{width:"100%",maxWidth:520}}>
+              <div style={{textAlign:"center",marginBottom:20}}>
+                <button className="btn-gold" onClick={handleStart} disabled={nameCount<2}>START</button>
+              </div>
+              <div style={{background:"#0f0e16",border:"1px solid #1e1c28",borderRadius:12,padding:28}}>
+                <label style={{display:"block",fontSize:12,letterSpacing:3,color:"#b48c5a",marginBottom:14,fontFamily:"Georgia,serif"}}>MEMBERS — 1行に1人</label>
+                <textarea rows={14} value={nameInput} onChange={e=>setNameInput(e.target.value)}/>
+                <div style={{marginTop:8,color:"#4a4060",fontSize:12,textAlign:"right",fontFamily:"Georgia,serif"}}>{nameCount} 人</div>
+              </div>
+            </div>
+          )}
+
+          {/* ── VOTING ── */}
+          {phase==="voting" && comparison && (
+            <div style={{width:"100%",maxWidth:560}}>
+              <div style={{marginBottom:22}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+                  <span style={{fontSize:11,color:"#4a4060",letterSpacing:2,fontFamily:"Georgia,serif"}}>比較回数</span>
+                  <span style={{fontSize:11,color:"#7a6a55",fontFamily:"Georgia,serif"}}>{voteCount} / 約{estimated}</span>
+                </div>
+                <div className="prog-out"><div className="prog-in" style={{width:`${progressPct}%`}}/></div>
+              </div>
+
+              <div style={{marginBottom:16,textAlign:"center"}}>
+                <span style={{color:"#7a6a55",fontSize:14,fontStyle:"italic",fontFamily:"Georgia,serif"}}>どちらがより好きですか？</span>
+              </div>
+
+              <div style={{display:"flex",gap:14,alignItems:"center"}}>
+                <button
+                  className={`card-btn ${chosen===0?"win":chosen===1?"lose":""}`}
+                  onClick={()=>vote(true)} disabled={chosen!==null}
+                >
+                  <span style={{fontSize:cardFontSize(pA),fontWeight:700,lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",maxWidth:"100%",display:"block"}}>{pA}</span>
+                </button>
+                <div style={{fontFamily:"Georgia,serif",fontSize:18,color:"#4a4060",fontWeight:900,letterSpacing:3,flexShrink:0,width:46,textAlign:"center"}}>VS</div>
+                <button
+                  className={`card-btn ${chosen===1?"win":chosen===0?"lose":""}`}
+                  onClick={()=>vote(false)} disabled={chosen!==null}
+                >
+                  <span style={{fontSize:cardFontSize(pB),fontWeight:700,lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",maxWidth:"100%",display:"block"}}>{pB}</span>
+                </button>
+              </div>
+
+              <div style={{display:"flex",justifyContent:"center",gap:10,marginTop:28,flexWrap:"wrap"}}>
+                <button className="btn-ghost" onClick={goBack} disabled={!canGoBack}>← 1つ戻る</button>
+                <button className="btn-ghost" onClick={reset}>最初からやり直す</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── RESULT ── */}
+          {phase==="result" && (
+            <div style={{width:"100%",maxWidth:520}}>
+              <div style={{textAlign:"center",marginBottom:24}}>
+                <div style={{color:"#b48c5a",fontSize:22,marginBottom:6}}>✦</div>
+                <h2 style={{fontFamily:"Georgia,serif",fontSize:26,fontWeight:900,margin:0}}>結果発表</h2>
+                <p style={{color:"#7a6a55",fontStyle:"italic",marginTop:6,fontSize:13,fontFamily:"Georgia,serif"}}>
+                  {voteCount}回の比較で {resultOrder.length}人の完全ランキング完成
+                </p>
+              </div>
+
+              <div style={{display:"flex",justifyContent:"center",marginBottom:18}}>
+                <button className="btn-save" onClick={()=>{ setSaving(true); setTimeout(()=>{ saveTop10Image(nameList,resultOrder,voteCount); setSaving(false); },50); }} disabled={saving}>
+                  <span>📷</span><span>{saving?"保存中…":"TOP10を画像で保存"}</span>
+                </button>
+              </div>
+
+              <div style={{background:"#0f0e16",border:"1px solid #1e1c28",borderRadius:12,overflow:"hidden"}}>
+                {resultOrder.map((id,i) => {
+                  const rank=i+1; const isTop3=rank<=3; const isTop10=rank<=10;
+                  return (
+                    <div className="rank-row" key={id} style={{
+                      background:isTop3?`rgba(180,140,90,${0.08-i*0.02})`:undefined,
+                      opacity: isTop10 ? 1 : 0.5,
+                    }}>
+                      <div style={{width:34,textAlign:"center",fontSize:isTop3?20:13,fontWeight:700,color:isTop3?"#b48c5a":isTop10?"#4a4060":"#2a2535",flexShrink:0,fontFamily:"Georgia,serif"}}>
+                        {getRankLabel(rank)}
+                      </div>
+                      <div style={{flex:1,fontFamily:"Georgia,serif",fontSize:isTop3?17:14,fontWeight:isTop3?700:400,color:isTop3?"#e8e0d0":isTop10?"#9a8a75":"#4a4060"}}>
+                        {nameList[id]}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{display:"flex",justifyContent:"center",gap:10,marginTop:24,flexWrap:"wrap"}}>
+                <button className="btn-ghost" onClick={goBack} disabled={history.length===0}>← 1つ戻る</button>
+                <button className="btn-ghost" onClick={reset}>メンバー変更</button>
+                <button className="btn-accent" onClick={handleStart}>同じメンバーで再挑戦</button>
+              </div>
+            </div>
+          )}
+          <div style={{height:48}}/>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
