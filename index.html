@@ -66,8 +66,8 @@
 
     // ─── LocalStorage ───────────────────────────────────────────────────────────
     const SAVE_KEY = "ranking_oracle_v1";
-    function saveProgress(nameList, sortState, comparison, history, voteCount) {
-      try { localStorage.setItem(SAVE_KEY, JSON.stringify({nameList,sortState,comparison,history,voteCount})); } catch(e) {}
+    function saveProgress(nameList, sortState, comparison, history, voteCount, userName) {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify({nameList,sortState,comparison,history,voteCount,userName})); } catch(e) {}
     }
     function loadProgress() {
       try { const r=localStorage.getItem(SAVE_KEY); return r?JSON.parse(r):null; } catch(e){return null;}
@@ -88,7 +88,7 @@
     }
 
     // ─── Canvas image generator ─────────────────────────────────────────────────
-    function generateRankingImage(nameList, resultOrder, voteCount, limit) {
+    function generateRankingImage(nameList, resultOrder, voteCount, limit, userName) {
       const list = limit ? resultOrder.slice(0, limit) : resultOrder;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const W = 560, ROW = 62, HEADER = 158, FOOTER = 58, PAD = 28;
@@ -111,7 +111,8 @@
       ctx.fillStyle = "#7c3aed"; ctx.font = "bold 12px Georgia, serif";
       ctx.fillText("✦  RANKING ORACLE  ✦", W/2, 42);
       ctx.fillStyle = "#2d1060"; ctx.font = "bold 34px Georgia, serif";
-      ctx.fillText("好きランキング", W/2, 88);
+      const title = userName ? userName + "'s ランキング" : "好きランキング";
+      ctx.fillText(title, W/2, 88);
       ctx.fillStyle = "#9b5de5"; ctx.font = "italic 13px Georgia, serif";
       const label = limit ? `TOP ${limit}` : `全${list.length}位`;
       ctx.fillText(label + "  ·  " + voteCount + "回の比較より", W/2, 118);
@@ -189,6 +190,7 @@
       const [savingTop, setSavingTop] = useState(false);
       const [savingFull, setSavingFull] = useState(false);
       const [savedData, setSavedData] = useState(() => loadProgress());
+      const [userName, setUserName] = useState("");
 
       const nameCount = nameInput.split("\n").filter(n=>n.trim()).length;
       const estimated = estimateMax(nameCount);
@@ -215,7 +217,7 @@
           const newCount = voteCount + 1;
           setVoteCount(newCount);
           if (done) { setResultOrder(result); setPhase("result"); clearProgress(); setSavedData(null); }
-          else { setSortState(ns); setComparison(nc); saveProgress(nameList, ns, nc, newHist, newCount); }
+          else { setSortState(ns); setComparison(nc); saveProgress(nameList, ns, nc, newHist, newCount, userName); }
           setChosen(null);
         }, 360);
       }
@@ -324,6 +326,7 @@
                       setComparison(savedData.comparison);
                       setHistory(savedData.history);
                       setVoteCount(savedData.voteCount);
+                      if (savedData.userName) setUserName(savedData.userName);
                       setChosen(null);
                       setPhase("voting");
                     }}>再開する ▶</button>
@@ -331,6 +334,16 @@
                   </div>
                 </div>
               )}
+              <div style={{background:"#ffffff",border:"1px solid #d8c8f8",borderRadius:12,padding:"18px 22px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontFamily:"Georgia,serif",fontSize:13,color:"#9b5de5",whiteSpace:"nowrap",letterSpacing:1}}>Your Name</span>
+                <input
+                  type="text"
+                  placeholder="名前を入力（任意）"
+                  value={userName}
+                  onChange={e=>setUserName(e.target.value)}
+                  style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid #d8c8f8",outline:"none",fontFamily:"Georgia,serif",fontSize:15,color:"#2d1060",padding:"4px 2px"}}
+                />
+              </div>
               <div style={{textAlign:"center",marginBottom:20}}>
                 <button className="btn-gold" onClick={handleStart} disabled={nameCount<2}>START</button>
               </div>
@@ -385,12 +398,12 @@
               {/* Save buttons */}
               <div style={{display:"flex",flexDirection:"column",gap:10,alignItems:"center",marginBottom:20}}>
                 <button className="btn-save"
-                  onClick={()=>{ setSavingTop(true); setTimeout(()=>{ generateRankingImage(nameList,resultOrder,voteCount,10); setSavingTop(false); },50); }}
+                  onClick={()=>{ setSavingTop(true); setTimeout(()=>{ generateRankingImage(nameList,resultOrder,voteCount,10,userName); setSavingTop(false); },50); }}
                   disabled={savingTop}>
                   <span>📷</span><span>{savingTop?"保存中…":"TOP10を画像で保存"}</span>
                 </button>
                 <button className="btn-save-full"
-                  onClick={()=>{ setSavingFull(true); setTimeout(()=>{ generateRankingImage(nameList,resultOrder,voteCount,null); setSavingFull(false); },50); }}
+                  onClick={()=>{ setSavingFull(true); setTimeout(()=>{ generateRankingImage(nameList,resultOrder,voteCount,null,userName); setSavingFull(false); },50); }}
                   disabled={savingFull}>
                   <span>🖼️</span><span>{savingFull?"保存中…":"全順位を画像で保存"}</span>
                 </button>
