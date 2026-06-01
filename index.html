@@ -64,6 +64,16 @@
       return a;
     }
 
+    // ─── LocalStorage ───────────────────────────────────────────────────────────
+    const SAVE_KEY = "ranking_oracle_v1";
+    function saveProgress(nameList, sortState, comparison, history, voteCount) {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify({nameList,sortState,comparison,history,voteCount})); } catch(e) {}
+    }
+    function loadProgress() {
+      try { const r=localStorage.getItem(SAVE_KEY); return r?JSON.parse(r):null; } catch(e){return null;}
+    }
+    function clearProgress() { try{localStorage.removeItem(SAVE_KEY);}catch(e){} }
+
     const DEFAULT_NAMES = [
       "木稲瑠那","呉屋絵理子","中村楓","市瀬千里","左山桃子",
       "伊藤めぐみ","小川愛","上野真実","瀧澤千聖","中嶋淑乃",
@@ -180,6 +190,7 @@
       const [chosen, setChosen] = useState(null);
       const [savingTop, setSavingTop] = useState(false);
       const [savingFull, setSavingFull] = useState(false);
+      const [savedData, setSavedData] = useState(() => loadProgress());
 
       const nameCount = nameInput.split("\n").filter(n=>n.trim()).length;
       const estimated = estimateMax(nameCount);
@@ -200,11 +211,13 @@
         if (chosen !== null || !comparison || !sortState) return;
         setChosen(aWon ? 0 : 1);
         setTimeout(() => {
-          setHistory(h => [...h, { sortState, comparison, count: voteCount }]);
+          const newHist = [...history, { sortState, comparison, count: voteCount }];
+          setHistory(newHist);
           const { sortState: ns, comparison: nc, done, result } = applyVote(sortState, aWon);
-          setVoteCount(v => v + 1);
-          if (done) { setResultOrder(result); setPhase("result"); }
-          else { setSortState(ns); setComparison(nc); }
+          const newCount = voteCount + 1;
+          setVoteCount(newCount);
+          if (done) { setResultOrder(result); setPhase("result"); clearProgress(); setSavedData(null); }
+          else { setSortState(ns); setComparison(nc); saveProgress(nameList, ns, nc, newHist, newCount); }
           setChosen(null);
         }, 360);
       }
@@ -219,6 +232,7 @@
       }
 
       function reset() {
+        clearProgress(); setSavedData(null);
         setPhase("setup"); setSortState(null); setComparison(null);
         setResultOrder([]); setHistory([]); setVoteCount(0); setChosen(null);
       }
@@ -301,6 +315,24 @@
           {/* ── SETUP ── */}
           {phase==="setup" && (
             <div style={{width:"100%",maxWidth:520}}>
+              {savedData && (
+                <div style={{background:"#f0e8ff",border:"2px solid #c084fc",borderRadius:12,padding:"16px 18px",marginBottom:18}}>
+                  <div style={{fontFamily:"Georgia,serif",fontSize:13,fontWeight:700,color:"#6b21a8",marginBottom:6}}>⏸ 途中のデータがあります</div>
+                  <div style={{fontFamily:"Georgia,serif",fontSize:12,color:"#9b5de5",marginBottom:12}}>{savedData.voteCount}回完了 · {savedData.nameList.length}人</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button className="btn-gold" style={{padding:"9px 20px",fontSize:13,letterSpacing:1,flex:1}} onClick={()=>{
+                      setNameList(savedData.nameList);
+                      setSortState(savedData.sortState);
+                      setComparison(savedData.comparison);
+                      setHistory(savedData.history);
+                      setVoteCount(savedData.voteCount);
+                      setChosen(null);
+                      setPhase("voting");
+                    }}>再開する ▶</button>
+                    <button className="btn-ghost" style={{padding:"9px 16px",fontSize:12}} onClick={()=>{ clearProgress(); setSavedData(null); }}>削除</button>
+                  </div>
+                </div>
+              )}
               <div style={{textAlign:"center",marginBottom:20}}>
                 <button className="btn-gold" onClick={handleStart} disabled={nameCount<2}>START</button>
               </div>
