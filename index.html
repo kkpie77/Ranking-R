@@ -98,23 +98,21 @@
       const ctx = canvas.getContext("2d");
       ctx.scale(dpr, dpr);
 
-      // BG
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, "#120d24"); bg.addColorStop(1, "#0a0815");
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      // BG - white base
+      ctx.fillStyle = "#f8f5ff"; ctx.fillRect(0, 0, W, H);
 
       // Top stripe
       const stripe = ctx.createLinearGradient(0, 0, W, 0);
-      stripe.addColorStop(0, "#3d1f6e"); stripe.addColorStop(0.5, "#9b5de5"); stripe.addColorStop(1, "#3d1f6e");
+      stripe.addColorStop(0, "#7c3aed"); stripe.addColorStop(0.5, "#9b5de5"); stripe.addColorStop(1, "#7c3aed");
       ctx.fillStyle = stripe; ctx.fillRect(0, 0, W, 5);
 
       // Header
       ctx.textAlign = "center";
-      ctx.fillStyle = "#c084fc"; ctx.font = "bold 12px Georgia, serif";
+      ctx.fillStyle = "#7c3aed"; ctx.font = "bold 12px Georgia, serif";
       ctx.fillText("✦  RANKING ORACLE  ✦", W/2, 42);
       ctx.fillStyle = "#2d1060"; ctx.font = "bold 34px Georgia, serif";
       ctx.fillText("好きランキング", W/2, 88);
-      ctx.fillStyle = "#9d7ec7"; ctx.font = "italic 13px Georgia, serif";
+      ctx.fillStyle = "#9b5de5"; ctx.font = "italic 13px Georgia, serif";
       const label = limit ? `TOP ${limit}` : `全${list.length}位`;
       ctx.fillText(label + "  ·  " + voteCount + "回の比較より", W/2, 118);
 
@@ -123,7 +121,7 @@
       ctx.beginPath(); ctx.moveTo(PAD, 136); ctx.lineTo(W-PAD, 136); ctx.stroke();
 
       const rankLabels = ["1st","2nd","3rd"];
-      const rankColors = ["#c084fc","#a78bfa","#818cf8"];
+      const rankColors = ["#7c3aed","#9b5de5","#a78bfa"];
 
       list.forEach((id, i) => {
         const rank = i + 1;
@@ -135,7 +133,7 @@
         // Row bg
         if (isTop3) {
           const rg = ctx.createLinearGradient(0, y, W, y);
-          rg.addColorStop(0, `rgba(155,93,229,${[0.18,0.12,0.08][i]})`);
+          rg.addColorStop(0, `rgba(155,93,229,${[0.12,0.07,0.04][i]})`);
           rg.addColorStop(1, "rgba(155,93,229,0)");
           ctx.fillStyle = rg; ctx.fillRect(0, y, W, ROW);
         } else if (isTop10) {
@@ -168,7 +166,7 @@
       });
 
       // Footer
-      ctx.fillStyle = "#2d1f4a"; ctx.font = "11px Georgia, serif"; ctx.textAlign = "center";
+      ctx.fillStyle = "#c4b5e8"; ctx.font = "11px Georgia, serif"; ctx.textAlign = "center";
       ctx.fillText("Ranking Oracle · Merge Sort", W/2, HEADER + ROW*list.length + 30);
       ctx.fillStyle = stripe; ctx.fillRect(0, H-5, W, 5);
 
